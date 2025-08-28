@@ -1,38 +1,86 @@
 #!/usr/bin/python3
-import random, sys, os
+import random, subprocess, ast, operator
+
+# -------- SAFE CALCULATOR -------- #
+class SafeCalc:
+    OPS = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.Mod: operator.mod,
+        ast.Pow: operator.pow,
+        ast.FloorDiv: operator.floordiv,
+        ast.USub: operator.neg,
+        ast.UAdd: operator.pos,
+    }
+
+    @staticmethod
+    def eval_expr(expr):
+        """Safely evaluate a math expression using AST parsing."""
+        node = ast.parse(expr, mode="eval").body
+        return SafeCalc._eval(node)
+
+    @staticmethod
+    def _eval(node):
+        if isinstance(node, ast.BinOp):
+            left = SafeCalc._eval(node.left)
+            right = SafeCalc._eval(node.right)
+            return SafeCalc.OPS[type(node.op)](left, right)
+        elif isinstance(node, ast.UnaryOp):
+            operand = SafeCalc._eval(node.operand)
+            return SafeCalc.OPS[type(node.op)](operand)
+        elif isinstance(node, ast.Num):  # For Python 3.7 and below
+            return node.n
+        elif isinstance(node, ast.Constant):  # Python 3.8+
+            if isinstance(node.value, (int, float)):
+                return node.value
+            else:
+                raise ValueError("Only numbers allowed")
+        else:
+            raise TypeError(f"Unsupported expression: {ast.dump(node)}")
+
+# -------- MAIN TOOL CLASS -------- #
 class tool:
     @staticmethod
     def getInput(ios, arg):
-        if ios:  # If ios is True, return as integer
+        if ios:
             return int(input(f"{arg}"))
         else:
-            return input(f"{arg}")  # Return as string
+            return input(f"{arg}")
+
     @staticmethod
-    def cmd(arg):
-        os.system(f"{arg}")
-    @staticmethod
-    def rtn_rdm(imin, imax):
-        return random.randint(imin, imax)  # Return a random number set by the params
+    def cmd(args, capture=False):
+        """Run a system command safely with subprocess."""
+        try:
+            if capture:
+                result = subprocess.run(args, capture_output=True, text=True, check=True)
+                return result.stdout
+            else:
+                subprocess.run(args, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"[ERROR] Command failed: {e}")
+
     @staticmethod
     def mdir():
         dname = tool.getInput(False, "Directory name please: ")
-        tool.cmd(f"mkdir {dname}")
-        print(f"OK, have made a directory called: '{dname}'\nPATH: {os.getcwd()}")
+        tool.cmd(["mkdir", "-p", dname])   # -p avoids crash if dir exists
+        print(f"OK, have made a directory called: '{dname}'")
+
     @staticmethod
     def read(fname):
         try:
             with open(fname, "r") as tmp_var:
-                tmp_var.read()
+                print(tmp_var.read())
         except FileNotFoundError:
             print("File not found!")
+
     @staticmethod
     def write(fname):
         tmp_data = tool.getInput(False, "> ")
-        try:
-            with open(fname, "a+") as tmp_var:
-                tmp_var.write(tmp_data)
-        except FileNotFoundError:
-            print("File not found!")
+        with open(fname, "a+") as tmp_var:
+            tmp_var.write(tmp_data)
+
     @staticmethod
     def appendFile():
         apfname = tool.getInput(False, "Filename please.\n$: ")
@@ -40,16 +88,22 @@ class tool:
         with open(apfname, "a") as fileOpen:
             fileOpen.write(f"\n{tofile}")
         print("Written to file...")
+
     @staticmethod
     def sfile(filename, search):
-        os.system(f"cat {filename} | grep -i {search}")
+        try:
+            result = tool.cmd(["grep", "-i", search, filename], capture=True)
+            print(result)
+        except Exception:
+            print("No matches found.")
+
     @staticmethod
     def mkpasswd():
         letters = "abcdefghijklmnopqrstuvwxyz"
         numbs = "0123456789"
         special = "!^*£$"
-        passwd = random.choice(letters)  # Must start with a letter
-        for _ in range(7):  # Target length 8
+        passwd = random.choice(letters)
+        for _ in range(7):
             randSel = random.randint(0, 2)
             if randSel == 0:
                 passwd += random.choice(letters)
@@ -59,96 +113,106 @@ class tool:
                 passwd += random.choice(special)
         print(f"Password is: {passwd}!\nThe length is: {len(passwd)}!")
         return passwd
+
     @staticmethod
     def guess():
-        print("Ok... this is a guessing game, you will be told the range of numbers, there are 5 ranges of difficulty")
+        print("Ok... guessing game, 5 difficulty levels")
         rdm_diff_select = [[0, 2], [0, 4], [0, 5], [0, 6], [0, 9]]
-        tmp_str = "Please select a difficulty: 1-5 (default is 2)."
         tmp = 2
         try:
-            tmp = tool.getInput(True, tmp_str)
+            tmp = tool.getInput(True, "Please select difficulty 1-5 (default 2): ")
         except ValueError:
-            print("Value Error... you tried I guess.")
-        finally:
-            player_int = tool.rtn_rdm(*rdm_diff_select[tmp - 1])
-            cpu_int = tool.rtn_rdm(*rdm_diff_select[tmp - 1])
-            print(f"Your number is: {player_int}.\nComputer's is: {cpu_int}.")
+            print("Value Error... defaulting to 2")
+        player_int = random.randint(*rdm_diff_select[tmp - 1])
+        cpu_int = random.randint(*rdm_diff_select[tmp - 1])
+        print(f"Your number is: {player_int}.\nComputer's is: {cpu_int}.")
+
     @staticmethod
     def calc():
         try:
-            tmp = tool.getInput(False, "Please type a sum, E.G: '1+1'")
-            etmp = eval(tmp)
-        except NameError:
-            print("Name error, did you enter a sum correctly?")
-        finally:
-            print(f"{etmp}")
+            expr = tool.getInput(False, "Please type a sum, e.g. '1+2*3': ")
+            result = SafeCalc.eval_expr(expr)
+            print(f"= {result}")
+        except Exception as e:
+            print(f"Error: {e}")
+
     @staticmethod
     def local():
-        fname = "local_system_infomation.txt\n"
-        tool.cmd(f"w -i -p > {fname}")
-        tool.cmd(f"who -a >>  {fname}")
-        tool.cmd(f"service --status-all >> {fname}")
-        tool.cmd(f"netstat -tuln >> {fname}")
+        fname = "local_system_information.txt"
+        with open(fname, "w") as f:
+            f.write(tool.cmd(["w", "-i", "-p"], capture=True) or "")
+            f.write(tool.cmd(["who", "-a"], capture=True) or "")
+            f.write(tool.cmd(["service", "--status-all"], capture=True) or "")
+            f.write(tool.cmd(["netstat", "-tuln"], capture=True) or "")
+        print(f"System info written to {fname}")
+
     @staticmethod
     def osi():
         print("""
-        6) Application: Network process to application. DNS WWW/HTTP/HTTPS/P2P,E-Mail,POP,SMTP,Telnet,FTP.
-        5) Presentation: Data representation and encryption. HTML,DOC,JPEG,MP3,AVI.
-        4) Session: Inter host communication. TCP,SIP,RTP.
-        3) Transport: End-To-End connections and reliability.TCP,UDP,SCTP,SSL,TLS.
-        2) Path Determination and logical addressing: IP,IPSec,ICMP,IGMP,OSPF.
-        1) Data Link: Ethernet, 802.11,MAC/LLC,VLAN,ATM,HDP,PPP,Q,921,Token Ring,ARP.
-        0) Physical: Media signal and binary transmission. RS-232,RJ45,V,100BASE-TX,SDH,DSL,802.11
+        6) Application: DNS, HTTP/HTTPS, Email, FTP
+        5) Presentation: Data representation (HTML,DOC,JPEG,MP3)
+        4) Session: Inter host communication (TCP,SIP,RTP)
+        3) Transport: End-to-End (TCP,UDP,TLS)
+        2) Network: IP, ICMP, OSPF
+        1) Data Link: Ethernet, 802.11, ARP
+        0) Physical: Binary transmission (RJ45, DSL, Wi-Fi)
         """)
+
     @staticmethod
     def ohd():
-        os.system("man ascii")
+        tool.cmd(["man", "ascii"])
+
     @staticmethod
     def wdh():
-        domain = tool.getInput(False, "Domain name please(just the name and the tld(e.g google.com).\n$: ")
-        std = tool.getInput(False, "Would you like to save it to disk? (y/n)").lower()
+        domain = tool.getInput(False, "Domain name please (e.g google.com):\n$: ")
+        save = tool.getInput(False, "Save to disk? (y/n): ").lower()
         fileName = tool.getInput(False, "Please pick a filename: ")
-        if std in ["yes", "y"]:
-            std = True
+        if save in ["yes", "y"]:
+            with open(fileName, "w") as f:
+                f.write(tool.cmd(["whois", domain], capture=True) or "")
+                f.write(tool.cmd(["dig", domain], capture=True) or "")
+                f.write(tool.cmd(["host", domain], capture=True) or "")
+            print(f"Results saved to {fileName}")
         else:
-            std = False
-        if not std:
-            print("Just getting the information...")
-            tool.cmd(f"whois {domain}")
-            tool.cmd(f"dig  {domain}")
-            tool.cmd(f"host {domain}")
-        else:
-            tool.cmd(f"whois > {fileName}")
-            tool.cmd(f"dig >> {fileName}")
-            tool.cmd(f"host >> {fileName}")
+            print(tool.cmd(["whois", domain], capture=True))
+            print(tool.cmd(["dig", domain], capture=True))
+            print(tool.cmd(["host", domain], capture=True))
+
     @staticmethod
     def pchk():
-        tool.cmd(f"netstat -pnltu | grep {tool.getInput(True, 'Port Please: ')}")
+        port = tool.getInput(True, "Port Please: ")
+        output = tool.cmd(["netstat", "-pnltu"], capture=True)
+        if output:
+            for line in output.splitlines():
+                if f":{port}" in line:
+                    print(line)
+
     cmds = [
         "help: this help list.",
         "mdir: makes a directory.",
         "read: opens and reads a file.",
         "write: writes to a file.",
         "append: Appends to a file.",
-        "sfile: search a file",
-        "password: makes a random password.",
+        "sfile: search a file.",
+        "mkpasswd: makes a random password.",
         "guess: runs a guessing game.",
-        "calc: a simple calculation function.",
+        "calc: a simple calculator.",
         "local: prints local system information.",
-        "osi: displays information about the OSI model.",
-        "ohd: displays octal/hex/decimal conversions.",
-        "wdh: does lookups for a given domain.",
-        "pchk: checks services running on a specific port."
+        "osi: displays OSI model info.",
+        "ohd: displays ASCII conversions.",
+        "wdh: whois/dig/host lookups.",
+        "pchk: checks services on a port."
     ]
+
     @staticmethod
     def icmd():
-        print("Hi, welcome to the console. Yes, you can have 'help'.")
+        print("Hi, welcome to the console. Type 'help' for options.")
         tmp = tool.getInput(False, "> ")
         if tmp == "exit":
-            exit()
+            return "exit"
         elif tmp == "help":
             for each in tool.cmds:
-                print(f"{each}")
+                print(each)
         elif tmp == "read":
             tool.read(tool.getInput(False, "Filename:\n> "))
         elif tmp == "write":
@@ -170,11 +234,14 @@ class tool:
         elif tmp == "sfile":
             fn = tool.getInput(False,"Filename: ")
             s = tool.getInput(False,"Search String: ")
-            tool.sfile()
+            tool.sfile(fn, s)
         elif tmp == "wdh":
             tool.wdh()
         elif tmp == "pchk":
             tool.pchk()
-tmp = " "  # Keeps the loop running with minimal resources
+        return tmp
+
+# Main loop
+tmp = ""
 while tmp != "exit":
     tmp = tool.icmd()
