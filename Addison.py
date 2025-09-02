@@ -1,5 +1,6 @@
 #!/usr/bin/python3
-import random, subprocess, ast, operator
+
+import random, sys, os, subprocess, ast, operator
 
 # -------- SAFE CALCULATOR -------- #
 class SafeCalc:
@@ -30,7 +31,7 @@ class SafeCalc:
         elif isinstance(node, ast.UnaryOp):
             operand = SafeCalc._eval(node.operand)
             return SafeCalc.OPS[type(node.op)](operand)
-        elif isinstance(node, ast.Num):  # For Python 3.7 and below
+        elif isinstance(node, ast.Num):  # Python 3.7 and below
             return node.n
         elif isinstance(node, ast.Constant):  # Python 3.8+
             if isinstance(node.value, (int, float)):
@@ -44,15 +45,17 @@ class SafeCalc:
 class tool:
     @staticmethod
     def getInput(ios, arg):
-        if ios:
+        if ios:  # If ios is True, return as integer
             return int(input(f"{arg}"))
         else:
-            return input(f"{arg}")
+            return input(f"{arg}")  # Return as string
 
     @staticmethod
     def cmd(args, capture=False):
         """Run a system command safely with subprocess."""
         try:
+            if isinstance(args, str):
+                args = args.split()
             if capture:
                 result = subprocess.run(args, capture_output=True, text=True, check=True)
                 return result.stdout
@@ -65,7 +68,7 @@ class tool:
     def mdir():
         dname = tool.getInput(False, "Directory name please: ")
         tool.cmd(["mkdir", "-p", dname])   # -p avoids crash if dir exists
-        print(f"OK, have made a directory called: '{dname}'")
+        print(f"OK, have made a directory called: '{dname}'\nPATH: {os.getcwd()}")
 
     @staticmethod
     def read(fname):
@@ -78,8 +81,11 @@ class tool:
     @staticmethod
     def write(fname):
         tmp_data = tool.getInput(False, "> ")
-        with open(fname, "a+") as tmp_var:
-            tmp_var.write(tmp_data)
+        try:
+            with open(fname, "a+") as tmp_var:
+                tmp_var.write(tmp_data)
+        except FileNotFoundError:
+            print("File not found!")
 
     @staticmethod
     def appendFile():
@@ -93,7 +99,7 @@ class tool:
     def sfile(filename, search):
         try:
             result = tool.cmd(["grep", "-i", search, filename], capture=True)
-            print(result)
+            print(result if result else "No matches found.")
         except Exception:
             print("No matches found.")
 
@@ -102,8 +108,9 @@ class tool:
         letters = "abcdefghijklmnopqrstuvwxyz"
         numbs = "0123456789"
         special = "!^*£$"
-        passwd = random.choice(letters)
-        for _ in range(7):
+
+        passwd = random.choice(letters)  # Must start with a letter
+        for _ in range(7):  # Target length 8
             randSel = random.randint(0, 2)
             if randSel == 0:
                 passwd += random.choice(letters)
@@ -111,7 +118,8 @@ class tool:
                 passwd += random.choice(numbs)
             else:
                 passwd += random.choice(special)
-        print(f"Password is: {passwd}!\nThe length is: {len(passwd)}!")
+
+        print(f"Password is: {passwd}\nLength: {len(passwd)}")
         return passwd
 
     @staticmethod
@@ -123,6 +131,7 @@ class tool:
             tmp = tool.getInput(True, "Please select difficulty 1-5 (default 2): ")
         except ValueError:
             print("Value Error... defaulting to 2")
+
         player_int = random.randint(*rdm_diff_select[tmp - 1])
         cpu_int = random.randint(*rdm_diff_select[tmp - 1])
         print(f"Your number is: {player_int}.\nComputer's is: {cpu_int}.")
@@ -149,13 +158,13 @@ class tool:
     @staticmethod
     def osi():
         print("""
-        6) Application: DNS, HTTP/HTTPS, Email, FTP
-        5) Presentation: Data representation (HTML,DOC,JPEG,MP3)
-        4) Session: Inter host communication (TCP,SIP,RTP)
-        3) Transport: End-to-End (TCP,UDP,TLS)
-        2) Network: IP, ICMP, OSPF
-        1) Data Link: Ethernet, 802.11, ARP
-        0) Physical: Binary transmission (RJ45, DSL, Wi-Fi)
+6) Application: DNS, HTTP/HTTPS, Email, FTP
+5) Presentation: Data representation (HTML,DOC,JPEG,MP3)
+4) Session: Inter host communication (TCP,SIP,RTP)
+3) Transport: End-to-End (TCP,UDP,TLS)
+2) Network: IP, ICMP, OSPF
+1) Data Link: Ethernet, 802.11, ARP
+0) Physical: Binary transmission (RJ45, DSL, Wi-Fi)
         """)
 
     @staticmethod
@@ -167,6 +176,7 @@ class tool:
         domain = tool.getInput(False, "Domain name please (e.g google.com):\n$: ")
         save = tool.getInput(False, "Save to disk? (y/n): ").lower()
         fileName = tool.getInput(False, "Please pick a filename: ")
+
         if save in ["yes", "y"]:
             with open(fileName, "w") as f:
                 f.write(tool.cmd(["whois", domain], capture=True) or "")
@@ -192,7 +202,7 @@ class tool:
         "mdir: makes a directory.",
         "read: opens and reads a file.",
         "write: writes to a file.",
-        "append: Appends to a file.",
+        "append: appends to a file.",
         "sfile: search a file.",
         "mkpasswd: makes a random password.",
         "guess: runs a guessing game.",
@@ -201,26 +211,33 @@ class tool:
         "osi: displays OSI model info.",
         "ohd: displays ASCII conversions.",
         "wdh: whois/dig/host lookups.",
-        "pchk: checks services on a port."
+        "pchk: checks services on a port.",
     ]
 
     @staticmethod
     def icmd():
         print("Hi, welcome to the console. Type 'help' for options.")
         tmp = tool.getInput(False, "> ")
+
         if tmp == "exit":
             return "exit"
         elif tmp == "help":
             for each in tool.cmds:
                 print(each)
+        elif tmp == "mdir":
+            tool.mdir()
         elif tmp == "read":
             tool.read(tool.getInput(False, "Filename:\n> "))
         elif tmp == "write":
             tool.write(tool.getInput(False, "Filename:\n> "))
         elif tmp == "append":
             tool.appendFile()
+        elif tmp == "sfile":
+            fn = tool.getInput(False,"Filename: ")
+            s = tool.getInput(False,"Search String: ")
+            tool.sfile(fn, s)
         elif tmp == "mkpasswd":
-            print(tool.mkpasswd())
+            tool.mkpasswd()
         elif tmp == "guess":
             tool.guess()
         elif tmp == "calc":
@@ -231,17 +248,14 @@ class tool:
             tool.osi()
         elif tmp == "ohd":
             tool.ohd()
-        elif tmp == "sfile":
-            fn = tool.getInput(False,"Filename: ")
-            s = tool.getInput(False,"Search String: ")
-            tool.sfile(fn, s)
         elif tmp == "wdh":
             tool.wdh()
         elif tmp == "pchk":
             tool.pchk()
-        return tmp
 
-# Main loop
+        return " "
+
+# -------- MAIN LOOP -------- #
 tmp = ""
 while tmp != "exit":
     tmp = tool.icmd()
